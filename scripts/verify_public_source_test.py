@@ -72,6 +72,14 @@ class CommitIdentityPolicyTests(unittest.TestCase):
         )
         self.assertEqual(result.state, "failed")
 
+    def test_embedded_newline_in_local_part_is_not_matched(self):
+        # [^@]+ alone would let a crafted local part smuggle a second,
+        # unrelated-looking address past the anchored pattern.
+        result = verify_public_source.check_commit_identity_policy(
+            commit_fixture("junk\nreal@users.noreply.github.com")
+        )
+        self.assertEqual(result.state, "failed")
+
 
 class WorkflowTextTests(unittest.TestCase):
     def test_clean_workflow_is_verified(self):
@@ -167,6 +175,30 @@ class WorkflowTextBypassTests(unittest.TestCase):
         text = "jobs:\n  build:\n    online-check: true\n    runs-on: ubuntu-24.04\n"
         result = verify_public_source.evaluate_workflow_text("notatrigger.yml", text)
         self.assertEqual(result.state, "verified")
+
+    def test_quoted_runs_on_key_is_detected(self):
+        text = 'jobs:\n  build:\n    "runs-on": self-hosted\n'
+        result = verify_public_source.evaluate_workflow_text("qkey.yml", text)
+        self.assertEqual(result.state, "failed")
+
+    def test_single_quoted_on_key_is_detected(self):
+        text = "'on':\n  pull_request_target:\njobs:\n  build:\n    runs-on: ubuntu-24.04\n"
+        result = verify_public_source.evaluate_workflow_text("qkey2.yml", text)
+        self.assertEqual(result.state, "failed")
+
+    def test_quoted_pull_request_target_key_is_detected(self):
+        text = 'on:\n  "pull_request_target":\njobs:\n  build:\n    runs-on: ubuntu-24.04\n'
+        result = verify_public_source.evaluate_workflow_text("qkey3.yml", text)
+        self.assertEqual(result.state, "failed")
+        self.assertIn("pull_request_target", result.detail)
+
+    def test_self_hosted_inside_a_conditional_expression_is_detected(self):
+        text = (
+            "jobs:\n  build:\n    runs-on: "
+            "${{ github.repository == 'x' && 'self-hosted' || 'ubuntu-latest' }}\n"
+        )
+        result = verify_public_source.evaluate_workflow_text("expr.yml", text)
+        self.assertEqual(result.state, "failed")
 
     def test_block_list_scan_stops_at_a_dedented_sibling_key(self):
         text = (
@@ -287,6 +319,27 @@ class MalformedResponseTests(unittest.TestCase):
         with patch.object(verify_public_source, "_api_get", side_effect=fake_api_get):
             checks = verify_public_source.check_workflows("OceanMail", "oceanmail-station", "b" * 40)
         self.assertEqual(checks[0].state, "not_inspected")
+
+
+class ApiGetDecodeTests(unittest.TestCase):
+    """_api_get must never let a raw transport-level exception escape as
+    anything other than NotInspected — see MalformedResponseTests for the
+    response-shape half of the same invariant."""
+
+    def test_non_utf8_response_body_is_not_inspected_not_a_crash(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc_info):
+                return False
+
+            def read(self):
+                return b"\xff\xfe not valid utf-8"
+
+        with patch.object(verify_public_source.urllib.request, "urlopen", return_value=FakeResponse()):
+            with self.assertRaises(verify_public_source.NotInspected):
+                verify_public_source._api_get("/repos/OceanMail/oceanmail-station/commits/main")
 
 
 class ForbiddenNameTests(unittest.TestCase):

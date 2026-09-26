@@ -86,13 +86,13 @@ _FORBIDDEN_NAME_PATTERN = re.compile(
 # or API with a verified account; they cannot be typed in by hand the way
 # a personal address can, which is why they're the allowed pattern here
 # rather than any particular literal address.
-_ALLOWED_COMMIT_EMAIL = re.compile(r"^[^@]+@users\.noreply\.github\.com$", re.IGNORECASE)
+_ALLOWED_COMMIT_EMAIL = re.compile(r"^[^@\n]+@users\.noreply\.github\.com$", re.IGNORECASE)
 
-_RUNS_ON_KEY_PATTERN = re.compile(r"^([ \t]*)runs-on\s*:[ \t]*(.*)$", re.IGNORECASE | re.MULTILINE)
-_ON_KEY_PATTERN = re.compile(r"^([ \t]*)on\s*:[ \t]*(.*)$", re.IGNORECASE | re.MULTILINE)
+_RUNS_ON_KEY_PATTERN = re.compile(r"^([ \t]*)[\"']?runs-on[\"']?\s*:[ \t]*(.*)$", re.IGNORECASE | re.MULTILINE)
+_ON_KEY_PATTERN = re.compile(r"^([ \t]*)[\"']?on[\"']?\s*:[ \t]*(.*)$", re.IGNORECASE | re.MULTILINE)
 _SELF_HOSTED_TOKEN_PATTERN = re.compile(r"(?:^|[\s,\[\-])['\"]?self-hosted['\"]?(?:$|[\s,\]])", re.IGNORECASE)
 _PULL_REQUEST_TARGET_TOKEN_PATTERN = re.compile(
-    r"(?:^|[\s,\[\-:])pull_request_target(?:$|[\s,\]:])", re.IGNORECASE
+    r"(?:^|[\s,\[\-:])['\"]?pull_request_target['\"]?(?:$|[\s,\]:])", re.IGNORECASE
 )
 
 
@@ -145,7 +145,7 @@ def _api_get(path: str) -> dict | list:
         if exc.code == 404:
             raise
         raise NotInspected(f"GET {path} -> HTTP {exc.code}") from exc
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise NotInspected(f"GET {path} -> {exc}") from exc
 
 

@@ -65,9 +65,15 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Optional
+from urllib.parse import quote
 
 API_ROOT = "https://api.github.com"
 USER_AGENT = "oceanmail-infrastructure-verify-public-source/1"
+
+
+def _quote_path(value: str) -> str:
+    # Preserves '/' since a ref may legitimately be a branch name containing one.
+    return quote(value, safe="/")
 
 # Matches this organization's own historical/frozen naming convention
 # (REPOSITORIES.md: "Frozen/historical repositories"). Refused outright
@@ -82,8 +88,12 @@ _FORBIDDEN_NAME_PATTERN = re.compile(
 # rather than any particular literal address.
 _ALLOWED_COMMIT_EMAIL = re.compile(r"^[^@]+@users\.noreply\.github\.com$", re.IGNORECASE)
 
-_SELF_HOSTED_PATTERN = re.compile(r"runs-on\s*:\s*(\[[^\]]*self-hosted|self-hosted)", re.IGNORECASE)
-_PULL_REQUEST_TARGET_PATTERN = re.compile(r"pull_request_target\s*:", re.IGNORECASE)
+_RUNS_ON_KEY_PATTERN = re.compile(r"^([ \t]*)runs-on\s*:[ \t]*(.*)$", re.IGNORECASE | re.MULTILINE)
+_ON_KEY_PATTERN = re.compile(r"^([ \t]*)on\s*:[ \t]*(.*)$", re.IGNORECASE | re.MULTILINE)
+_SELF_HOSTED_TOKEN_PATTERN = re.compile(r"(?:^|[\s,\[\-])['\"]?self-hosted['\"]?(?:$|[\s,\]])", re.IGNORECASE)
+_PULL_REQUEST_TARGET_TOKEN_PATTERN = re.compile(
+    r"(?:^|[\s,\[\-:])pull_request_target(?:$|[\s,\]:])", re.IGNORECASE
+)
 
 
 class NotInspected(Exception):
@@ -139,16 +149,28 @@ def _api_get(path: str) -> dict | list:
         raise NotInspected(f"GET {path} -> {exc}") from exc
 
 
-def check_commit_identity(owner: str, repo: str, ref: str, expected_sha: Optional[str]) -> list[CheckResult]:
+def check_commit_identity(
+    owner: str, repo: str, ref: str, expected_sha: Optional[str]
+) -> tuple[list[CheckResult], Optional[str]]:
+    """Returns the checks plus the resolved commit SHA (``None`` if the commit
+    could not be resolved), so callers can pin the license/workflow checks to
+    the exact commit this function just verified rather than a ref string
+    that may mean something different by the time a later request fires."""
     try:
-        commit = _api_get(f"/repos/{owner}/{repo}/commits/{ref}")
+        commit = _api_get(f"/repos/{_quote_path(owner)}/{_quote_path(repo)}/commits/{_quote_path(ref)}")
     except urllib.error.HTTPError:
-        return [CheckResult("commit_resolves", "failed", f"{ref} does not resolve to a commit")]
+        return [CheckResult("commit_resolves", "failed", f"{ref} does not resolve to a commit")], None
     except NotInspected as exc:
-        return [CheckResult("commit_resolves", "not_inspected", str(exc))]
+        return [CheckResult("commit_resolves", "not_inspected", str(exc))], None
 
-    assert isinstance(commit, dict)
-    sha = commit.get("sha", "")
+    if not isinstance(commit, dict):
+        return [
+            CheckResult("commit_resolves", "not_inspected", "unexpected response shape for commit lookup")
+        ], None
+    sha = commit.get("sha")
+    if not isinstance(sha, str) or not sha:
+        return [CheckResult("commit_resolves", "not_inspected", "commit response missing sha")], None
+
     results = [CheckResult("commit_resolves", "verified", f"{ref} resolves to {sha}")]
 
     if expected_sha is not None:
@@ -162,7 +184,7 @@ def check_commit_identity(owner: str, repo: str, ref: str, expected_sha: Optiona
             )
 
     results.append(check_commit_identity_policy(commit))
-    return results
+    return results, sha
 
 
 def check_commit_identity_policy(commit: dict) -> CheckResult:
@@ -185,25 +207,54 @@ def check_commit_identity_policy(commit: dict) -> CheckResult:
     return CheckResult("commit_identity_policy", "verified", "author/committer emails match allowed pattern")
 
 
-def check_license(owner: str, repo: str) -> CheckResult:
+def check_license(owner: str, repo: str, ref: str) -> CheckResult:
     try:
-        license_info = _api_get(f"/repos/{owner}/{repo}/license")
+        license_info = _api_get(
+            f"/repos/{_quote_path(owner)}/{_quote_path(repo)}/license?ref={_quote_path(ref)}"
+        )
     except urllib.error.HTTPError:
         return CheckResult("license_present", "failed", "no GitHub-recognized license file found")
     except NotInspected as exc:
         return CheckResult("license_present", "not_inspected", str(exc))
-    assert isinstance(license_info, dict)
+    if not isinstance(license_info, dict):
+        return CheckResult("license_present", "not_inspected", "unexpected response shape for license lookup")
     spdx = (license_info.get("license") or {}).get("spdx_id", "unknown")
     return CheckResult("license_present", "verified", f"license file present, detected SPDX id: {spdx}")
+
+
+def _yaml_key_values_contain(text: str, key_pattern: re.Pattern, token_pattern: re.Pattern) -> bool:
+    """Best-effort scan for a token appearing as the same-line scalar/flow-sequence
+    value of a ``key:``, or as a block-sequence item indented under it anywhere in
+    that block (not just the first item). Still pure text matching, not a YAML
+    parser — see the module docstring for what that does and doesn't catch."""
+    lines = text.splitlines()
+    for match in key_pattern.finditer(text):
+        indent, remainder = match.group(1), match.group(2).split("#", 1)[0]
+        if remainder.strip():
+            if token_pattern.search(remainder):
+                return True
+            continue
+        base_indent = len(indent)
+        start_line = text.count("\n", 0, match.start()) + 1
+        for line in lines[start_line:]:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            this_indent = len(line) - len(line.lstrip(" \t"))
+            if this_indent <= base_indent:
+                break
+            if token_pattern.search(stripped.split("#", 1)[0]):
+                return True
+    return False
 
 
 def evaluate_workflow_text(filename: str, text: str) -> CheckResult:
     """Fixture-friendly: pure text-pattern check, no network. Not a YAML parser
     — see the module docstring for exactly what that means and doesn't mean."""
     findings = []
-    if _SELF_HOSTED_PATTERN.search(text):
+    if _yaml_key_values_contain(text, _RUNS_ON_KEY_PATTERN, _SELF_HOSTED_TOKEN_PATTERN):
         findings.append("self-hosted runner label")
-    if _PULL_REQUEST_TARGET_PATTERN.search(text):
+    if _yaml_key_values_contain(text, _ON_KEY_PATTERN, _PULL_REQUEST_TARGET_TOKEN_PATTERN):
         findings.append("pull_request_target trigger")
     if findings:
         return CheckResult(
@@ -212,9 +263,12 @@ def evaluate_workflow_text(filename: str, text: str) -> CheckResult:
     return CheckResult(f"workflow:{filename}", "verified", "no prohibited pattern found (text match only)")
 
 
-def check_workflows(owner: str, repo: str) -> list[CheckResult]:
+def check_workflows(owner: str, repo: str, ref: str) -> list[CheckResult]:
     try:
-        listing = _api_get(f"/repos/{owner}/{repo}/contents/.github/workflows")
+        listing = _api_get(
+            f"/repos/{_quote_path(owner)}/{_quote_path(repo)}/contents/.github/workflows"
+            f"?ref={_quote_path(ref)}"
+        )
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
             return [CheckResult("workflows", "verified", "no .github/workflows directory")]
@@ -222,15 +276,30 @@ def check_workflows(owner: str, repo: str) -> list[CheckResult]:
     except NotInspected as exc:
         return [CheckResult("workflows", "not_inspected", str(exc))]
 
-    assert isinstance(listing, list)
+    if not isinstance(listing, list):
+        return [
+            CheckResult("workflows", "not_inspected", "unexpected response shape for workflow directory listing")
+        ]
     results = []
     for entry in listing:
+        if not isinstance(entry, dict):
+            results.append(
+                CheckResult("workflows", "not_inspected", "unexpected entry shape in workflow directory listing")
+            )
+            continue
         name = entry.get("name", "")
         if not (name.endswith(".yml") or name.endswith(".yaml")):
             continue
         try:
-            file_info = _api_get(f"/repos/{owner}/{repo}/contents/.github/workflows/{name}")
-            assert isinstance(file_info, dict)
+            file_info = _api_get(
+                f"/repos/{_quote_path(owner)}/{_quote_path(repo)}/contents/.github/workflows/{_quote_path(name)}"
+                f"?ref={_quote_path(ref)}"
+            )
+            if not isinstance(file_info, dict):
+                results.append(
+                    CheckResult(f"workflow:{name}", "not_inspected", "unexpected response shape for workflow file")
+                )
+                continue
             if file_info.get("encoding") != "base64":
                 results.append(CheckResult(f"workflow:{name}", "not_inspected", "unexpected content encoding"))
                 continue
@@ -259,9 +328,21 @@ def verify_repo_ref(repo_ref: str) -> RepoReport:
     expected_sha = ref if re.fullmatch(r"[0-9a-fA-F]{40}", ref) else None
 
     report = RepoReport(repo_ref=f"{owner}/{repo}@{ref}")
-    report.checks.extend(check_commit_identity(owner, repo, ref, expected_sha))
-    report.checks.append(check_license(owner, repo))
-    report.checks.extend(check_workflows(owner, repo))
+    identity_checks, resolved_sha = check_commit_identity(owner, repo, ref, expected_sha)
+    report.checks.extend(identity_checks)
+    if resolved_sha is None:
+        # Can't pin the license/workflow checks to a commit that didn't resolve —
+        # inconclusive, not a silent check of whatever the default branch happens
+        # to contain right now.
+        report.checks.append(
+            CheckResult("license_present", "not_inspected", "commit did not resolve; cannot check license at that ref")
+        )
+        report.checks.append(
+            CheckResult("workflows", "not_inspected", "commit did not resolve; cannot check workflows at that ref")
+        )
+        return report
+    report.checks.append(check_license(owner, repo, resolved_sha))
+    report.checks.extend(check_workflows(owner, repo, resolved_sha))
     return report
 
 

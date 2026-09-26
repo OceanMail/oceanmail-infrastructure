@@ -65,4 +65,4 @@ Avoid production-scale topology documentation before measured requirements justi
 
 ## Legacy material
 
-`OceanMail/oceanmail-infrastructure-0.1-prototype` remains historical evidence. Reintroduce proven runbooks/security controls selectively after review rather than inheriting 0.1 deployment assumptions wholesale.
+The earlier 0.1 design remains historical evidence. Reintroduce proven runbooks/security controls selectively after review rather than inheriting 0.1 deployment assumptions wholesale.

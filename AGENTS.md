@@ -36,7 +36,7 @@ Operational constraints must be surfaced and reconciled; do not silently redefin
 
 ## Historical material
 
-`OceanMail/oceanmail-infrastructure-0.1-prototype` is historical evidence, not current deployment authority. Reuse proven runbooks/security controls selectively after review against current 0.2 architecture.
+The earlier 0.1 design is historical evidence, not current deployment authority. Reuse proven runbooks/security controls selectively after review against current 0.2 architecture.
 
 ## Security and scale discipline
 

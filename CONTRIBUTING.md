@@ -1,10 +1,9 @@
 # Contributing
 
-Licenses are installed; see [LICENSING.md](LICENSING.md). Additional inbound
-contribution terms remain pending; external contribution acceptance is paused
-until the organization finalizes them. Follow the
+Licenses are installed; see [LICENSING.md](LICENSING.md). No DCO or additional
+inbound agreement is adopted. Follow the
 [organization contribution policy](https://github.com/OceanMail/oceanmail-project/blob/main/CONTRIBUTING.md)
-and this repository's AGENTS.md. Once public, fork and submit PRs against main;
+and this repository's AGENTS.md. Fork and submit PRs against main;
 external contributors normally have no upstream write access. Maintainers merge.
 
 This bootstrap repository currently contains documentation and validation tooling,

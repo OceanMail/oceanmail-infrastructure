@@ -49,9 +49,9 @@ The architectural mail boundary is settled. Exact production provider/hosting ch
 
 Infrastructure must not distribute public-SMTP relay credentials or public-MTA responsibilities to gateway Stations as a deployment shortcut. A central outage may delay Internet-boundary traffic, but the deployment must not make native OMail dependent on central availability.
 
-## Legacy prototype
+## Implementation baseline
 
-Former deployment work is preserved in `OceanMail/oceanmail-infrastructure-0.1-prototype`. Useful runbooks, backup patterns, and security controls may be selectively reintroduced after review; old infrastructure history is not current deployment authority.
+Deployment, backup and security controls require review against the current 0.2 topology and reproducible validation.
 
 ## Immediate milestone
 
@@ -59,9 +59,9 @@ Provide the infrastructure needed for reproducible private 0.2 end-to-end servic
 
 Never commit live credentials, private keys, customer data, or production secrets.
 
-## Publication preparation
+## Public source status
 
-This is an experimental bootstrap, not a production-ready implementation. See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [Project #42](https://github.com/OceanMail/oceanmail-project-archive/issues/42). The approved source/documentation licenses are installed. See [LICENSING.md](LICENSING.md) and [PUBLICATION.md](PUBLICATION.md). Additional inbound contribution terms remain unadopted; administrator settings and fresh hosted checks require verification.
+This is an experimental bootstrap, not a production-ready implementation. See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md). The approved source/documentation licenses are installed. See [LICENSING.md](LICENSING.md) and [PUBLICATION.md](PUBLICATION.md). No additional inbound agreement is adopted. The public main branch is protected and hosted checks validate proposed changes; external-fork acceptance remains unverified.
 
 ## Licenses
 

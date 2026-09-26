@@ -15,7 +15,7 @@ Private host identities, accounts, paths, sizing, software inventories, service
 configuration, network topology and recovery procedures are intentionally excluded
 from public source. Keep those records in access-controlled operations storage.
 
-Before publication, an administrator must verify runner exclusion, default token
+Administrators must maintain and verify runner exclusion, default token
 permissions, outside-contributor workflow approvals and secret boundaries. Record
 sanitized evidence in the project publication tracker. Historical operational
 records, Actions logs/artifacts and Git metadata still need separate removal;

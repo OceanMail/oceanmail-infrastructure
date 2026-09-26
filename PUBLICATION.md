@@ -1,9 +1,30 @@
-# Fresh source publication
+# Public source status
 
-Owner direction, 2026-09-26: Server and Infrastructure join Project, Station and Desktop as public source repositories. This supersedes the earlier three-repository publication scope.
+Project, Station, Desktop, Server and Infrastructure are public OceanMail source
+repositories. Source publication began on 2026-09-26. The public repository trees,
+issues, pull requests and Actions runs are the contributor-facing project record.
+Documentation must be understandable using these public resources alone.
 
-This repository starts from a sanitized current tree with new Git history. The original repository remains private with an `-archive` suffix. Historical branches, identities, PRs, Actions artifacts and logs are not imported. Only generic architecture and operational security policy belong in this source repository; private deployment inventory remains outside it.
+Publication began from a sanitized source snapshot with fresh Git history. The
+public history starts at that publication boundary; it is not a complete record
+of earlier development, branches, reviews or test runs.
 
-LICENSE and LICENSE-DOCS contain the approved AGPL-3.0-only and CC-BY-SA-4.0 texts. LICENSING.md defines scope and preserves third-party terms. Additional inbound contribution terms remain unadopted.
+GitHub private vulnerability reporting is enabled (administrator API verified
+2026-09-26). A non-maintainer end-to-end report submission has not been tested.
 
-This is a documentation/bootstrap source release, not a running production service. Required hosted CI check: `docs`. Use pull requests, zero required approving reviews, required checks, and protected main. Configure private vulnerability reporting and exclude public repositories from trusted runners.
+OceanMail-owned code is licensed under **AGPL-3.0-only** and documentation under
+**CC-BY-SA-4.0**. See [LICENSING.md](LICENSING.md), [LICENSE](LICENSE) and
+[LICENSE-DOCS](LICENSE-DOCS). Third-party licenses and notices remain in force.
+No DCO or additional inbound agreement has been adopted.
+
+All five repositories have protected `main` branches and GitHub-hosted checks.
+Use a fork or topic branch and a pull request; maintainers review and merge.
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+An end-to-end external-fork acceptance test remains unverified; successful
+same-repository checks do not establish that result.
+
+Older technical results, where summarized in the documentation, are historical
+context rather than checks of the current public commit. Use the public Actions
+runs for current CI evidence. Source availability does not establish production
+readiness, binary redistribution clearance, live GUI acceptance or RF performance.
+Server and Infrastructure remain bootstrap repositories, not deployed services.

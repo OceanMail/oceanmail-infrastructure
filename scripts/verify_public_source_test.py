@@ -345,15 +345,15 @@ class ApiGetDecodeTests(unittest.TestCase):
 class ForbiddenNameTests(unittest.TestCase):
     def test_archive_suffix_is_refused(self):
         with self.assertRaises(ValueError):
-            verify_public_source.refuse_if_forbidden_name("OceanMail", "oceanmail-station-archive")
+            verify_public_source.refuse_if_forbidden_name("example-org", "example-archive")
 
     def test_prototype_suffix_is_refused(self):
         with self.assertRaises(ValueError):
-            verify_public_source.refuse_if_forbidden_name("OceanMail", "oceanmail-0.1-prototype")
+            verify_public_source.refuse_if_forbidden_name("example-org", "example-prototype")
 
     def test_bempic_prefix_is_refused(self):
         with self.assertRaises(ValueError):
-            verify_public_source.refuse_if_forbidden_name("OceanMail", "bempic-reference")
+            verify_public_source.refuse_if_forbidden_name("example-org", "bempic-example")
 
     def test_active_repository_is_permitted(self):
         verify_public_source.refuse_if_forbidden_name("OceanMail", "oceanmail-station")
@@ -363,7 +363,7 @@ class ForbiddenNameTests(unittest.TestCase):
         # a network call — this is what lets this test run with no network
         # access at all and still exercise the real entry point.
         with self.assertRaises(ValueError):
-            verify_public_source.verify_repo_ref("OceanMail/oceanmail-desktop-archive@main")
+            verify_public_source.verify_repo_ref("example-org/example-archive@main")
 
 
 class CheckResultTests(unittest.TestCase):
